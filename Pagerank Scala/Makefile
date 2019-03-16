@@ -4,21 +4,21 @@
 # -----------------------------------------------------------
 spark.root=/home/virat/tools/spark/spark-2.3.2-bin-without-hadoop
 hadoop.root=/home/virat/tools/hadoop/hadoop-2.8.5
-app.name=Follower Count
+app.name=Pagerank
 jar.name=spark-hw4.jar
 maven.jar.name=spark-hw4-1.0.jar
 job.name=pr.Pagerank
 local.master=local[4]
 local.input=input
 local.output=output
-local.param=3
+local.param=4
 # Pseudo-Cluster Execution
 hdfs.user.name=virat
 hdfs.input=input
 hdfs.output=output
 # AWS EMR Execution
 aws.emr.release=emr-5.20.0
-aws.bucket.name=virat-hw3-spark
+aws.bucket.name=virat-hw4-spark
 aws.input=input
 aws.output=output
 aws.log.dir=log
