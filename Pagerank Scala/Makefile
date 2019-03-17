@@ -11,7 +11,7 @@ job.name=pr.Pagerank
 local.master=local[4]
 local.input=input
 local.output=output
-local.param=4
+local.param=3
 # Pseudo-Cluster Execution
 hdfs.user.name=virat
 hdfs.input=input
