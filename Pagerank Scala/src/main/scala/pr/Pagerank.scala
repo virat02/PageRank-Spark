@@ -1,10 +1,8 @@
 package pr
 
-import scala.collection.JavaConversions._
-import au.com.bytecode.opencsv.CSVWriter
-import java.io.{BufferedWriter, FileWriter}
-import java.util
+import java.text.DecimalFormat
 
+import org.apache.commons.math3.util.Precision
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.log4j.LogManager
@@ -69,43 +67,48 @@ object Pagerank {
 
     val rankRDD = graphRDD.map(x =>  (x._1,1f/pow2(param)))
 
-    val finalRankRDD = rankRDD union dummyNodeRDD
+    //var since this RDD will have updated PR values after every iteration
+    var finalRankRDD = rankRDD union dummyNodeRDD
 
-    //persist finalRankRDD
-    finalRankRDD.persist()
+    var noInlinkNodes: List[(Int, Float)] = List()
 
-//    println(finalRankRDD.collect().foreach(println))
-//    println(graphRDD.collect().foreach(println))
+    //var answer : RDD[Double] = sc.emptyRDD
 
-    val contributions = graphRDD.join(finalRankRDD)
-        .map(x => if (x._1 != 0) (x._1, x._2) else ())
-//      .flatMap{ case(pagename,(links,rank)) =>
-////      // if it is a dangling node output an empty list
-////      if(links==0){
-////        List()}
-////      else{
-////        // else we map the contribution to the outgoing node
-////        //links.map(dest=>(dest,rank/size))
-////      }}
-////      // sum all the contributions from the node
-////      .reduceByKey((x,y)=>(x+y))
+    //assign a default pagerank of 0 to all the nodes with no in-links as they contains no contributions
+    for (i <- 1 to pow2(param) by param) {
+      noInlinkNodes = noInlinkNodes :+ (i, 0f)
+    }
 
-    //val ranks = contributions.reduceByKey((x, y) => x + y).mapValues(v => 0.15 + 0.85*v)
+    //form the noInlink RDD
+    val noInlinkRDD = sc.parallelize(noInlinkNodes)
 
-    println(contributions.collect().foreach(println))
+    for(i <- 1 to 10) {
 
-//
-//    //fetch the user_id_b, from a given input as user_id_a,user_id_b
-//    val counts = textFile.flatMap(line => line.split(",").tail)
-//
-//    //mapper function to generate user_id,no_of_followers
-//            .map(user_Id => (user_Id,1))
-//
-//    //reducer function to generate final output as user_id, total_no_of_followers
-//	          .reduceByKey(_+_)
-//
-//    counts.saveAsTextFile(args(1))
-//
-//    println(counts.toDebugString)
+      val contributions = graphRDD.join(finalRankRDD)
+        //returns each vertex id m in n’s adjacency list as (m, n’s PageRank / number of n’s out-links).
+        .map(x => (x._2._1, x._2._2))
+
+      var ranks = contributions.reduceByKey((x, y) => x + y)
+
+      ranks = ranks union noInlinkRDD
+
+      //println(sortedRanks.collect().foreach(println))
+
+      val prOfDummy : Float = ranks.lookup(0).head
+
+      val withoutDanglingRDD = ranks.map(x => if(x._1 != 0) (x._1, (0.15/pow2(param).toFloat + 0.85*x._2).toFloat) else (x._1, prOfDummy.toFloat))
+
+      //println(withoutDanglingRDD.collect().foreach(println))
+
+      val toAdd = prOfDummy/pow2(param).toFloat*0.85
+
+      finalRankRDD = withoutDanglingRDD.map(x => if (x._1 != 0) (x._1, x._2 + toAdd.toFloat) else (x._1, toAdd.toFloat))
+
+      finalRankRDD = finalRankRDD.mapValues(v => Precision.round(v , 15))
+
+    }
+
+    // Write out the final ranks
+    finalRankRDD.saveAsTextFile(args{1})
   }
 }
