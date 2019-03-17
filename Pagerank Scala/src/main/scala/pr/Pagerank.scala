@@ -61,9 +61,8 @@ object Pagerank {
     //persist graphRDD
     graphRDD.persist()
 
-    val zeroTuple = (0,0f)
     val zeroRow: List[(Int, Float)] = List()
-    val dummyNodeRDD = sc.parallelize(zeroRow:+zeroTuple)
+    val dummyNodeRDD = sc.parallelize(zeroRow:+(0,0f))
 
     val rankRDD = graphRDD.map(x =>  (x._1,1f/pow2(param)))
 
@@ -71,8 +70,6 @@ object Pagerank {
     var finalRankRDD = rankRDD union dummyNodeRDD
 
     var noInlinkNodes: List[(Int, Float)] = List()
-
-    //var answer : RDD[Double] = sc.emptyRDD
 
     //assign a default pagerank of 0 to all the nodes with no in-links as they contains no contributions
     for (i <- 1 to pow2(param) by param) {
@@ -82,6 +79,7 @@ object Pagerank {
     //form the noInlink RDD
     val noInlinkRDD = sc.parallelize(noInlinkNodes)
 
+    //perform 10 iterations
     for(i <- 1 to 10) {
 
       val contributions = graphRDD.join(finalRankRDD)
@@ -90,20 +88,22 @@ object Pagerank {
 
       var ranks = contributions.reduceByKey((x, y) => x + y)
 
+      //add the pages with no inlinks along with their dummy pageranks of 0
       ranks = ranks union noInlinkRDD
 
-      //println(sortedRanks.collect().foreach(println))
-
+      //fetch the delta
       val prOfDummy : Float = ranks.lookup(0).head
 
+      //compute PR values without the delta contribution
       val withoutDanglingRDD = ranks.map(x => if(x._1 != 0) (x._1, (0.15/pow2(param).toFloat + 0.85*x._2).toFloat) else (x._1, prOfDummy.toFloat))
 
-      //println(withoutDanglingRDD.collect().foreach(println))
+      //compute the delta value
+      val delta = prOfDummy/pow2(param).toFloat*0.85
 
-      val toAdd = prOfDummy/pow2(param).toFloat*0.85
+      //compute the final pagerank value for the current iteration
+      finalRankRDD = withoutDanglingRDD.map(x => if (x._1 != 0) (x._1, x._2 + delta.toFloat) else (x._1, delta.toFloat))
 
-      finalRankRDD = withoutDanglingRDD.map(x => if (x._1 != 0) (x._1, x._2 + toAdd.toFloat) else (x._1, toAdd.toFloat))
-
+      //round the PR value upto 15 decimal places
       finalRankRDD = finalRankRDD.mapValues(v => Precision.round(v , 15))
 
     }
